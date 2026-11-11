@@ -1,0 +1,10 @@
+digraph "Balanced brackets DPDA" {
+  rankdir=LR;
+  node [shape=circle];
+  start [shape=point];
+  start -> "q0";
+  "q0" [shape=circle];
+  "q1" [shape=doublecircle];
+  "q0" -> "q1" [label="(,Z0/(Z0\n[,Z0/[Z0\n{,Z0/{Z0"];
+  "q1" -> "q1" [label="(,Z0/(Z0\n(,(/((\n(,[/([\n(,{/({\n[,Z0/[Z0\n[,(/[(\n[,[/[[\n[,{/[{\n{,Z0/{Z0\n{,(/{(\n{,[/{[\n{,{/{{\n),(/ε\n],[/ε\n},{/ε"];
+}
