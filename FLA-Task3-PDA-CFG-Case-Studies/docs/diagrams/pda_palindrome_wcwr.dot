@@ -1,0 +1,13 @@
+digraph "DPDA for w c wR" {
+  rankdir=LR;
+  node [shape=circle];
+  start [shape=point];
+  start -> "q0";
+  "q0" [shape=circle];
+  "q1" [shape=circle];
+  "q2" [shape=doublecircle];
+  "q0" -> "q0" [label="a,Z0/aZ0\nb,Z0/bZ0\na,a/aa\na,b/ab\nb,a/ba\nb,b/bb"];
+  "q0" -> "q1" [label="c,Z0/Z0\nc,a/a\nc,b/b"];
+  "q1" -> "q1" [label="a,a/ε\nb,b/ε"];
+  "q1" -> "q2" [label="ε,Z0/Z0"];
+}

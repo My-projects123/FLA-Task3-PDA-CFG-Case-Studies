@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PDA / CFG Case Studies — live demo</title>
+  <style>
+    :root { --ink:#1f3b63; --ok:#16692c; --bad:#9b1c1c; --line:#dde1e7; --bg:#f6f7f9; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Segoe UI, Helvetica, Arial, sans-serif; background:var(--bg); color:#1d2330; }
+    header { background:var(--ink); color:#fff; padding:14px 24px; }
+    header h1 { margin:0; font-size:20px; }
+    header p { margin:4px 0 0; font-size:13px; opacity:.85; }
+    main { display:grid; grid-template-columns:minmax(280px,380px) 1fr; gap:18px; padding:18px 24px; }
+    @media (max-width:900px){ main { grid-template-columns:1fr; } }
+    .card { background:#fff; border:1px solid var(--line); border-radius:8px; padding:14px; }
+    label { font-size:13px; font-weight:600; display:block; margin:8px 0 4px; }
+    select, input, textarea { width:100%; padding:8px; font-size:15px; border:1px solid #bfc6d1; border-radius:6px; font-family: Consolas, ui-monospace, monospace; }
+    textarea { min-height:72px; resize:vertical; }
+    .verdict { margin-top:12px; padding:10px; border-radius:6px; font-weight:700; text-align:center; font-size:16px; }
+    .ok { background:#e3f4e7; color:var(--ok); } .bad { background:#fbe5e5; color:var(--bad); }
+    .chips span { display:inline-block; margin:3px; padding:3px 8px; border-radius:12px; font-size:12px; cursor:pointer; font-family:Consolas,monospace; }
+    .a { background:#e3f4e7; } .r { background:#fbe5e5; }
+    table { border-collapse:collapse; width:100%; font-size:13px; font-family:Consolas,monospace; }
+    th, td { border-bottom:1px solid #eceff3; padding:4px 6px; text-align:left; vertical-align:top; }
+    .stack { display:flex; flex-direction:column-reverse; align-items:center; gap:4px; min-height:160px; padding:12px; background:#f8fafc; border:1px dashed #cbd5e0; border-radius:8px; }
+    .stack .cell { min-width:64px; text-align:center; padding:8px 12px; border:2px solid var(--ink); border-radius:6px; background:#fff; font-family:Consolas,monospace; font-weight:700; }
+    .stack .cell.top { background:#ffd54f; }
+    .stack .z0 { border-style:dashed; color:#718096; }
+    .row { display:grid; grid-template-columns:140px 1fr; gap:16px; align-items:start; }
+    .statebox { text-align:center; padding:16px; border:2px solid var(--ink); border-radius:50%; width:88px; height:88px; display:flex; align-items:center; justify-content:center; font-weight:700; margin:0 auto 8px; background:#e8f0fe; }
+    .statebox.accept { background:#c6f6d5; border-color:var(--ok); }
+    .statebox.reject { background:#fed7d7; border-color:var(--bad); }
+    small { color:#5b6473; }
+    h2 { font-size:15px; margin:0 0 8px; color:var(--ink); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>PDA / CFG case studies — live demo</h1>
+  <p>21CSC301T Formal Language and Automata · CLA-2 Task 3 · Deepak V. F. (RA2411026050015)</p>
+</header>
+<main>
+  <div class="card">
+    <label for="app">Case study</label>
+    <select id="app">
+      <option value="brackets">1. Balanced brackets (DPDA)</option>
+      <option value="expr">2. Arithmetic expressions (LL(1))</option>
+      <option value="wcwr">3a. Palindrome w c wR (DPDA)</option>
+      <option value="wwr">3b. Palindrome w wR (NPDA)</option>
+    </select>
+    <label for="inp">Input</label>
+    <textarea id="inp" spellcheck="false"></textarea>
+    <div id="verdict" class="verdict"></div>
+    <label>Examples (click)</label>
+    <div class="chips" id="chips"></div>
+    <p><small id="info"></small></p>
+  </div>
+  <div class="card">
+    <div class="row">
+      <div>
+        <h2>Control state</h2>
+        <div id="state" class="statebox">q0</div>
+        <small id="stateNote"></small>
+      </div>
+      <div>
+        <h2>Stack (top at top)</h2>
+        <div class="stack" id="stack"></div>
+      </div>
+    </div>
+    <h2 style="margin-top:16px">Step trace</h2>
+    <table>
+      <thead><tr><th>#</th><th>read</th><th>ID (q, remaining, stack↓)</th></tr></thead>
+      <tbody id="trace"></tbody>
+    </table>
+  </div>
+</main>
+<script>
+const EX = {
+  brackets: {
+    accept: ["()", "[]{}", "([]{})", "{[()()]}", "((()))", "()[]{}([])"],
+    reject: ["(", ")(", "([)]", "(()", "{]}", "())(()"],
+    info: "DPDA: push openers, pop matching closers. Accept when input empty and only Z0 remains."
+  },
+  expr: {
+    accept: ["id", "id+id*id", "(id+id)*id", "id*(id+id)*id", "((id))", "id+id+id"],
+    reject: ["", "id+", "+id", "id id", "(id+id", "id+*id"],
+    info: "LL(1) predictive parser for E→TE', T→FT', F→(E)|id after left-recursion removal."
+  },
+  wcwr: {
+    accept: ["c", "aca", "abcba", "abbcbba", "babcbab"],
+    reject: ["", "ab", "abcab", "abcb", "acca"],
+    info: "DPDA for { w c wR }. Push until c, then pop."
+  },
+  wwr: {
+    accept: ["", "aa", "abba", "baab", "abbbba"],
+    reject: ["a", "ab", "aba", "abab", "aabb"],
+    info: "NPDA for even palindromes { w wR }. ε-guesses the centre (demo tries all centres)."
+  }
+};
+
+const match = { ")":"(", "]":"[", "}":"{" };
+
+function renderStack(stack) {
+  const el = document.getElementById("stack");
+  if (!stack.length) { el.innerHTML = "<em>empty</em>"; return; }
+  // stack[0] is bottom Z0; show top visually at top via column-reverse
+  el.innerHTML = stack.map((sym, i) => {
+    const top = i === stack.length - 1;
+    const z = sym === "Z0";
+    return `<div class="cell${top?" top":""}${z?" z0":""}">${sym}</div>`;
+  }).join("");
+}
+
+function setState(name, kind) {
+  const el = document.getElementById("state");
+  el.textContent = name;
+  el.className = "statebox" + (kind === "ok" ? " accept" : kind === "bad" ? " reject" : "");
+}
+
+function runBrackets(s) {
+  let q = "q0";
+  let stack = ["Z0"];
+  const rows = [];
+  const rem = [...s];
+  rows.push({read:"—", id:`(${q}, ${rem.join("")||"ε"}, ${[...stack].reverse().join("")})`});
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    rem.shift();
+    const top = stack[stack.length - 1];
+    if ("([{".includes(ch)) {
+      if (q === "q0" || q === "q1") {
+        stack.push(ch); q = "q1";
+      } else return fail(rows, q, stack, rem, ch);
+    } else if (")]}".includes(ch)) {
+      if (q !== "q1" || top !== match[ch]) return fail(rows, q, stack, rem, ch);
+      stack.pop();
+    } else return fail(rows, q, stack, rem, ch);
+    rows.push({read:ch, id:`(${q}, ${rem.join("")||"ε"}, ${[...stack].reverse().join("")})`});
+  }
+  const ok = q === "q1" && stack.length === 1 && stack[0] === "Z0";
+  return finish(rows, q, stack, ok);
+}
+
+function fail(rows, q, stack, rem, ch) {
+  rows.push({read:ch||"?", id:`stuck — no move`});
+  return finish(rows, q, stack, false);
+}
+
+function finish(rows, q, stack, ok) {
+  return { rows, q, stack, ok };
+}
+
+function runWcwr(s) {
+  let q = "q0";
+  let stack = ["Z0"];
+  const rows = [];
+  const rem = [...s];
+  rows.push({read:"—", id:`(${q}, ${rem.join("")||"ε"}, ${[...stack].reverse().join("")})`});
+  let phase = "push";
+  for (const ch of s) {
+    rem.shift();
+    if (phase === "push") {
+      if (ch === "a" || ch === "b") { stack.push(ch); }
+      else if (ch === "c") { q = "q1"; phase = "pop"; }
+      else return fail(rows, q, stack, rem, ch);
+    } else {
+      const top = stack[stack.length - 1];
+      if ((ch === "a" || ch === "b") && top === ch) stack.pop();
+      else return fail(rows, q, stack, rem, ch);
+    }
+    rows.push({read:ch, id:`(${q}, ${rem.join("")||"ε"}, ${[...stack].reverse().join("")})`});
+  }
+  if (phase === "pop" && stack.length === 1 && stack[0] === "Z0") {
+    q = "q2";
+    rows.push({read:"ε", id:`(${q}, ε, Z0)`});
+    return finish(rows, q, stack, true);
+  }
+  return finish(rows, q, stack, false);
+}
+
+function runWwr(s) {
+  // Try every centre split (ε-guess). Prefer accepting path if any.
+  for (let mid = 0; mid <= s.length; mid++) {
+    const left = s.slice(0, mid);
+    const right = s.slice(mid);
+    let stack = ["Z0"];
+    const rows = [];
+    let rem = [...s];
+    let q = "q0";
+    rows.push({read:"—", id:`(${q}, ${rem.join("")||"ε"}, Z0)`});
+    let okLeft = true;
+    for (const ch of left) {
+      rem.shift();
+      if (ch !== "a" && ch !== "b") { okLeft = false; break; }
+      stack.push(ch);
+      rows.push({read:ch, id:`(${q}, ${rem.join("")||"ε"}, ${[...stack].reverse().join("")})`});
+    }
+    if (!okLeft) continue;
+    q = "q1";
+    rows.push({read:"ε", id:`(guess centre → ${q}, ${rem.join("")||"ε"}, ${[...stack].reverse().join("")})`});
+    let okRight = true;
+    for (const ch of right) {
+      rem.shift();
+      const top = stack[stack.length - 1];
+      if (top !== ch) { okRight = false; break; }
+      stack.pop();
+      rows.push({read:ch, id:`(${q}, ${rem.join("")||"ε"}, ${[...stack].reverse().join("")})`});
+    }
+    if (okRight && stack.length === 1 && stack[0] === "Z0" && rem.length === 0) {
+      q = "q2";
+      rows.push({read:"ε", id:`(${q}, ε, Z0)`});
+      return finish(rows, q, stack, true);
+    }
+  }
+  // show one failed attempt (centre at end)
+  return runWwrFail(s);
+}
+
+function runWwrFail(s) {
+  let stack = ["Z0"], q = "q0", rows = [], rem = [...s];
+  rows.push({read:"—", id:`(${q}, ${rem.join("")||"ε"}, Z0)`});
+  for (const ch of s) {
+    rem.shift();
+    if (ch==="a"||ch==="b") stack.push(ch);
+    rows.push({read:ch, id:`(${q}, ${rem.join("")||"ε"}, ${[...stack].reverse().join("")})`});
+  }
+  rows.push({read:"ε", id:`no centre guess clears the stack`});
+  return finish(rows, q, stack, false);
+}
+
+function tokenizeExpr(text) {
+  const tokens = [];
+  let i = 0;
+  while (i < text.length) {
+    if (/\s/.test(text[i])) { i++; continue; }
+    if (text.startsWith("id", i)) { tokens.push("id"); i += 2; continue; }
+    if ("+*()".includes(text[i])) { tokens.push(text[i]); i++; continue; }
+    return null;
+  }
+  return tokens;
+}
+
+function runExpr(text) {
+  const tokens = tokenizeExpr(text);
+  if (tokens === null) {
+    return { rows:[{read:"?", id:"tokenize failed — use id, +, *, (, )"}], q:"error", stack:["Z0"], ok:false };
+  }
+  const input = tokens.concat(["$"]);
+  let i = 0;
+  const stack = ["$", "E"]; // top at end
+  const rows = [];
+  const peek = () => input[i];
+  const top = () => stack[stack.length - 1];
+  rows.push({read:"—", id:`stack=${[...stack].reverse().join(" ")}  look=${peek()}`});
+
+  const table = {
+    "E":  { "id":["T","E'"], "(":["T","E'"] },
+    "E'": { "+":["+","T","E'"], ")":[], "$":[] },
+    "T":  { "id":["F","T'"], "(":["F","T'"] },
+    "T'": { "*":["*","F","T'"], "+":[], ")":[], "$":[] },
+    "F":  { "id":["id"], "(":["(","E",")"] },
+  };
+  const terminals = new Set(["id","+","*","(",")","$"]);
+  let steps = 0;
+  while (steps++ < 200) {
+    const X = top();
+    const a = peek();
+    if (X === "$" && a === "$") {
+      rows.push({read:"$", id:"ACCEPT"});
+      return finish(rows, "accept", stack, true);
+    }
+    if (terminals.has(X)) {
+      if (X === a) {
+        stack.pop(); i++;
+        rows.push({read:a, id:`match ${a}; stack=${[...stack].reverse().join(" ")||"ε"}`});
+      } else {
+        rows.push({read:a, id:`mismatch: expected ${X}`});
+        return finish(rows, "reject", stack, false);
+      }
+    } else {
+      const prod = table[X] && table[X][a];
+      if (!prod) {
+        rows.push({read:a, id:`no LL(1) entry for (${X}, ${a})`});
+        return finish(rows, "reject", stack, false);
+      }
+      stack.pop();
+      for (let k = prod.length - 1; k >= 0; k--) stack.push(prod[k]);
+      const body = prod.length ? prod.join(" ") : "ε";
+      rows.push({read:a, id:`${X} → ${body}; stack=${[...stack].reverse().join(" ")}`});
+    }
+  }
+  return finish(rows, "reject", stack, false);
+}
+
+function show(result) {
+  const v = document.getElementById("verdict");
+  v.className = "verdict " + (result.ok ? "ok" : "bad");
+  v.textContent = result.ok ? "ACCEPTED" : "REJECTED";
+  setState(result.q, result.ok ? "ok" : "bad");
+  renderStack(result.stack);
+  document.getElementById("trace").innerHTML = result.rows.map((r, idx) =>
+    `<tr><td>${idx}</td><td>${r.read}</td><td>${r.id}</td></tr>`
+  ).join("");
+}
+
+function run() {
+  const app = document.getElementById("app").value;
+  const s = document.getElementById("inp").value;
+  document.getElementById("info").textContent = EX[app].info;
+  document.getElementById("stateNote").textContent =
+    app === "expr" ? "parser focus / accept" : "PDA control state";
+  let result;
+  if (app === "brackets") result = runBrackets(s);
+  else if (app === "wcwr") result = runWcwr(s);
+  else if (app === "wwr") result = runWwr(s);
+  else result = runExpr(s);
+  show(result);
+}
+
+function load() {
+  const app = document.getElementById("app").value;
+  const ex = EX[app];
+  document.getElementById("chips").innerHTML =
+    ex.accept.map(x => `<span class="a">${x === "" ? "(empty)" : x}</span>`).join("") +
+    ex.reject.map(x => `<span class="r">${x === "" ? "(empty)" : x}</span>`).join("");
+  document.querySelectorAll("#chips span").forEach(sp => {
+    sp.onclick = () => {
+      document.getElementById("inp").value = sp.textContent === "(empty)" ? "" : sp.textContent;
+      run();
+    };
+  });
+  document.getElementById("inp").value = ex.accept[0] ?? "";
+  run();
+}
+
+document.getElementById("app").onchange = load;
+document.getElementById("inp").oninput = run;
+load();
+</script>
+</body>
+</html>
